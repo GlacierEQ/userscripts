@@ -19,6 +19,15 @@
 		}
 	});
 
+	/* Override theme mode  */
+	$: if ($settings["theme_mode"]) {
+		if ($settings["theme_mode"] === "auto") {
+			document.body.style.removeProperty("color-scheme");
+		} else {
+			document.body.style.setProperty("color-scheme", $settings["theme_mode"]);
+		}
+	}
+
 	// disables default cmd+s (save) and cmd+f (find) behavior
 	function preventKeyCommands(e) {
 		if (e.metaKey && (e.code === "KeyS" || e.code === "KeyF")) {
