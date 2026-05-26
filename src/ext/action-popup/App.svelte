@@ -242,6 +242,12 @@
 		}
 		platform = pltfm.platform;
 
+		/* Override theme mode  */
+		const theme = await settingsStorage.get("theme_mode");
+		if (theme && theme !== "auto") {
+			document.body.style.setProperty("color-scheme", theme);
+		}
+
 		// display native error if there is
 		const errorNative = await settingsStorage.get("error_native");
 		if (errorNative.error) {

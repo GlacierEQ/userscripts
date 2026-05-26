@@ -94,16 +94,20 @@ func isEncoded(_ str: String) -> Bool {
 	return false
 }
 
+// parser REs - force try b/c pattern is known to be valid regex
+let re0 = try! NSRegularExpression(pattern: #"(?:(\/\/ ==UserScript==[ \t]*?\r?\n([\S\s]*?)\r?\n\/\/ ==\/UserScript==)([\S\s]*)|(\/\* ==UserStyle==[ \t]*?\r?\n([\S\s]*?)\r?\n==\/UserStyle== \*\/)([\S\s]*))"#, options: [])
+// RE for meta line
+let re1 = try! NSRegularExpression(pattern: #"^(?:[ \t]*(?:\/\/)?[ \t]*@)([\w-]+)[ \t]+([^\s]+[^\r\n\t\v\f]*)"#, options: [])
+// this pattern checks for specific keys that won't have values
+let re2 = try! NSRegularExpression(pattern: #"^(?:[ \t]*(?:\/\/)?[ \t]*@)(noframes)[ \t]*$"#, options: [])
+
 // parser
 func parse(_ content: String) -> [String: Any]? {
 	// returns structured data from content of file
 	// will fail to parse if metablock or required @name key missing
-	let pattern = #"(?:(\/\/ ==UserScript==[ \t]*?\r?\n([\S\s]*?)\r?\n\/\/ ==\/UserScript==)([\S\s]*)|(\/\* ==UserStyle==[ \t]*?\r?\n([\S\s]*?)\r?\n==\/UserStyle== \*\/)([\S\s]*))"#
-	// force try b/c pattern is known to be valid regex
-	let regex = try! NSRegularExpression(pattern: pattern, options: [])
 	let range = NSRange(location: 0, length: content.utf16.count)
 	// return nil/fail if metablock missing
-	guard let match = regex.firstMatch(in: content, options: [], range: range) else {
+	guard let match = re0.firstMatch(in: content, options: [], range: range) else {
 		logger?.debug("\(#function, privacy: .public) - Non matched content: \(content, privacy: .public)")
 		return nil
 	}
@@ -138,17 +142,11 @@ func parse(_ content: String) -> [String: Any]? {
 		let metaArray = content[metas].split(whereSeparator: \.isNewline)
 		// loop through metadata lines and populate metadata dictionary
 		for meta in metaArray {
-			let p = #"^(?:[ \t]*(?:\/\/)?[ \t]*@)([\w-]+)[ \t]+([^\s]+[^\r\n\t\v\f]*)"#
-			// this pattern checks for specific keys that won't have values
-			let p2 = #"^(?:[ \t]*(?:\/\/)?[ \t]*@)(noframes)[ \t]*$"#
 			// the individual meta string, ie. // @name File Name
 			let metaString = String(meta).trimmingCharacters(in: .whitespaces)
-			// force try b/c pattern is known to be valid regex
-			let re = try! NSRegularExpression(pattern: p, options: [])
-			let re2 = try! NSRegularExpression(pattern: p2, options: [])
 			let range = NSRange(location: 0, length: metaString.utf16.count)
 			// key lines not properly prefixed & without values will be skipped
-			if let m = re.firstMatch(in: metaString, options: [], range: range) {
+			if let m = re1.firstMatch(in: metaString, options: [], range: range) {
 				// force unwrap key & value since matches regex above
 				let key = metaString[Range(m.range(at: 1), in: metaString)!]
 				let value = metaString[Range(m.range(at: 2), in: metaString)!]
@@ -220,7 +218,7 @@ func updateManifest(with data: Manifest) -> Bool {
 		try fileContent.write(to: url, atomically: false, encoding: .utf8)
 		return true
 	} catch {
-		logger?.error("\(#function, privacy: .public) - failed to update manifest: \(error.localizedDescription, privacy: .public)")
+		logger?.error("\(#function, privacy: .public) - failed to update manifest: \(error, privacy: .public)")
 		return false
 	}
 }
@@ -742,7 +740,7 @@ func getRequiredCode(_ filename: String, _ resources: [String], _ fileType: Stri
 			do {
 				try FileManager.default.removeItem(at: directory)
 			} catch {
-				logger?.error("\(#function, privacy: .public) - failed to remove directory: \(error.localizedDescription, privacy: .public)")
+				logger?.error("\(#function, privacy: .public) - failed to remove directory: \(error, privacy: .public)")
 			}
 		}
 		return true
@@ -796,11 +794,11 @@ func getRequiredCode(_ filename: String, _ resources: [String], _ fileType: Stri
 				try FileManager.default.removeItem(at: abandonFileUrl)
 				logger?.info("\(#function, privacy: .public) - cleanup abandoned resource: \(unsanitize(abandonFileUrl.lastPathComponent), privacy: .public)")
 			} catch {
-				logger?.error("\(#function, privacy: .public) - failed to remove abandoned resource: \(error.localizedDescription, privacy: .public)")
+				logger?.error("\(#function, privacy: .public) - failed to remove abandoned resource: \(error, privacy: .public)")
 			}
 		}
 	} catch {
-		logger?.error("\(#function, privacy: .public) - failed to cleanup resources: \(error.localizedDescription, privacy: .public)")
+		logger?.error("\(#function, privacy: .public) - failed to cleanup resources: \(error, privacy: .public)")
 	}
 	return true
 }
@@ -877,7 +875,7 @@ func getRemoteFileContents(_ url: String) -> String? {
 			}
 		}
 		if let error = error {
-			logger?.error("\(#function, privacy: .public) - task error: \(error.localizedDescription, privacy: .public) (\(url, privacy: .public))")
+			logger?.error("\(#function, privacy: .public) - task error: \(error, privacy: .public) (\(url, privacy: .public))")
 		}
 		semaphore.signal()
 	}
@@ -984,7 +982,7 @@ func checkDefaultDirectories() -> Bool {
 				try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
 			} catch {
 				// could not create the save location directory, show error
-				logger?.error("\(#function, privacy: .public) - failed at (1) - \(url, privacy: .public) - \(error.localizedDescription, privacy: .public)")
+				logger?.error("\(#function, privacy: .public) - failed at (1) - \(url, privacy: .public) - \(error, privacy: .public)")
 				return false
 			}
 		}
@@ -1002,6 +1000,9 @@ func stringToRegex(_ stringPattern: String) -> NSRegularExpression? {
 	}
 	return regex
 }
+
+// RE for parse matchPattern
+let re3 = try! NSRegularExpression(pattern: #"^(http:|https:|\*:)\/\/((?:\*\.)?(?:[a-z0-9-]+\.)+(?:[a-z0-9]+)|\*\.[a-z]+|\*|[a-z0-9]+)(\/[^\s]*)$"#, options: .caseInsensitive)
 
 func match(_ url: String, _ matchPattern: String) -> Bool {
 	guard
@@ -1028,10 +1029,8 @@ func match(_ url: String, _ matchPattern: String) -> Bool {
 	if (ptcl != "http:" && ptcl != "https:") {
 		return false
 	}
-	let partsPattern = #"^(http:|https:|\*:)\/\/((?:\*\.)?(?:[a-z0-9-]+\.)+(?:[a-z0-9]+)|\*\.[a-z]+|\*|[a-z0-9]+)(\/[^\s]*)$"#
-	let partsPatternReg = try! NSRegularExpression(pattern: partsPattern, options: .caseInsensitive)
 	let range = NSMakeRange(0, matchPattern.utf16.count)
-	guard let parts = partsPatternReg.firstMatch(in: matchPattern, options: [], range: range) else {
+	guard let parts = re3.firstMatch(in: matchPattern, options: [], range: range) else {
 		logger?.error("\(#function, privacy: .public) - malformed regex match pattern - \(matchPattern, privacy: .public)")
 		return false
 	}
@@ -1763,7 +1762,7 @@ func trashFile(_ item: [String: Any]) -> Bool {
 		do {
 			try FileManager.default.trashItem(at: url, resultingItemURL: nil)
 		} catch {
-			logger?.error("\(#function, privacy: .public) - \(error.localizedDescription, privacy: .public)")
+			logger?.error("\(#function, privacy: .public) - \(error, privacy: .public)")
 			return false
 		}
 	}
